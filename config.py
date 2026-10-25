@@ -32,7 +32,7 @@ class Settings(BaseSettings):
 
     # Email (Resend)
     resend_api_key: str = ""
-    from_email: str = "noreply@provare.com.br"
+    from_email: str = "onboarding@resend.dev"
 
     # App
     app_url: str = "https://provare.com.br"
