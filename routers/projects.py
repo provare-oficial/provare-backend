@@ -151,6 +151,90 @@ async def update_project(
     return {"message": "Projeto atualizado com sucesso."}
 
 
+@router.post("/{project_id}/advance-phase")
+async def advance_phase_convenience(
+    project_id: str,
+    company: dict = Depends(get_current_company),
+):
+    """
+    Rota de conveniência: avança a fase atual do projeto sem precisar do phase_id.
+    Chamado pelo TabFases no ProjectDetailPage.jsx.
+    """
+    db = get_database()
+    project = await db.projects.find_one({
+        "project_id": project_id,
+        "company_id": company["company_id"],
+        "deleted": {"$ne": True},
+    })
+    if not project:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+
+    # Encontra a fase atual (status active ou current)
+    current_phase = await db.phases.find_one({
+        "project_id": project_id,
+        "company_id": company["company_id"],
+        "status": {"$in": ["active", "current"]},
+    })
+
+    # Se não há fase active, tenta a primeira com status diferente de done/completed
+    if not current_phase:
+        current_phase = await db.phases.find_one(
+            {"project_id": project_id, "company_id": company["company_id"],
+             "status": {"$nin": ["done", "completed"]}},
+            sort=[("index", 1)],
+        )
+
+    if not current_phase:
+        raise HTTPException(status_code=400, detail="Nenhuma fase em andamento.")
+
+    now = datetime.utcnow()
+    phase_id = current_phase["phase_id"]
+    current_index = current_phase.get("index", 0)
+
+    # Conclui a fase atual
+    await db.phases.update_one(
+        {"phase_id": phase_id},
+        {"$set": {"status": "done", "completed_at": now}},
+    )
+
+    # Ativa a próxima fase
+    next_phase = await db.phases.find_one(
+        {"project_id": project_id, "company_id": company["company_id"],
+         "index": current_index + 1},
+    )
+    if next_phase:
+        await db.phases.update_one(
+            {"phase_id": next_phase["phase_id"]},
+            {"$set": {"status": "current", "started_at": now}},
+        )
+        next_phase_name = next_phase.get("name", "")
+    else:
+        next_phase_name = None
+
+    # Atualiza progresso no projeto
+    total_phases = project.get("total_phases", 0)
+    new_index = current_index + 1
+    progress = round((new_index / total_phases * 100) if total_phases > 0 else 100)
+    is_last = next_phase is None
+
+    await db.projects.update_one(
+        {"project_id": project_id},
+        {"$set": {
+            "current_phase_index": new_index,
+            "current_phase": next_phase_name or current_phase.get("name", ""),
+            "progress": progress,
+            "status": "concluido" if is_last else "ativo",
+            "updated_at": now,
+        }},
+    )
+
+    return {
+        "message": "Fase concluída." + (" Projeto finalizado!" if is_last else f" Próxima fase: {next_phase_name}"),
+        "project_completed": is_last,
+        "next_phase": next_phase_name,
+    }
+
+
 @router.delete("/{project_id}")
 async def delete_project(
     project_id: str,
