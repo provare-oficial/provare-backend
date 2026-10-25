@@ -95,6 +95,19 @@ async def verify_magic_link(token: str):
     }
 
 
+@router.get("/dev-token")
+async def dev_get_token(email: str):
+    """DEBUG ONLY — retorna magic link token para testes. Remover em produção."""
+    from config import settings
+    if settings.environment == "production":
+        raise HTTPException(status_code=404, detail="Not found")
+    db = get_database()
+    user = await db.users.find_one({"email": email.lower()}, {"magic_link_token": 1, "_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    return {"token": user.get("magic_link_token"), "verify_url": f"{settings.app_url}/auth/verify/{user.get('magic_link_token')}"}
+
+
 @router.get("/me")
 async def get_me(current_user: dict = Depends(get_current_user)):
     """Retorna os dados do usuário logado."""
