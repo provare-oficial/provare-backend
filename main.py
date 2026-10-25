@@ -44,6 +44,7 @@ app.add_middleware(
     allow_origins=[
         "https://provare.com.br",
         "https://www.provare.com.br",
+        "https://provare-frontend.vercel.app",
         "http://localhost:5173",   # Vite dev server
         "http://localhost:3000",
     ],
