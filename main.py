@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import connect_db, disconnect_db
-from routers import auth, companies, projects, phases, media, provare_book, billing
+from routers import auth, companies, projects, phases, media, provare_book, billing, dashboard
 
 # Configuração de logs
 logging.basicConfig(
@@ -61,6 +61,7 @@ app.include_router(phases.router)
 app.include_router(media.router)
 app.include_router(provare_book.router)
 app.include_router(billing.router)
+app.include_router(dashboard.router)
 
 
 @app.get("/health")
