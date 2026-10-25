@@ -114,7 +114,7 @@ async def get_project(
     project_id: str,
     company: dict = Depends(get_current_company),
 ):
-    """Retorna detalhes de um projeto."""
+    """Retorna detalhes de um projeto, incluindo suas fases."""
     db = get_database()
     project = await db.projects.find_one({
         "project_id": project_id,
@@ -123,7 +123,18 @@ async def get_project(
     })
     if not project:
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
-    return _serialize(project)
+
+    # Busca fases do projeto ordenadas por índice
+    phases_cursor = db.phases.find(
+        {"project_id": project_id, "company_id": company["company_id"]}
+    ).sort("index", 1)
+    phases = await phases_cursor.to_list(None)
+    for ph in phases:
+        ph.pop("_id", None)
+
+    result = _serialize(project)
+    result["phases"] = phases
+    return result
 
 
 @router.put("/{project_id}")
