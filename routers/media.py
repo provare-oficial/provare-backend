@@ -155,6 +155,17 @@ async def update_media(
     return {"message": "Mídia atualizada."}
 
 
+@router.patch("/{media_id}")
+async def patch_media(
+    project_id: str,
+    media_id: str,
+    data: MediaUpdate,
+    company: dict = Depends(get_current_company),
+):
+    """Alias PATCH para atualizar legenda ou inclusão no Book (compatibilidade com frontend)."""
+    return await update_media(project_id, media_id, data, company)
+
+
 @router.post("/{media_id}/toggle-book")
 async def toggle_in_book(
     project_id: str,
