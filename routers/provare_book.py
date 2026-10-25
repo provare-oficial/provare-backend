@@ -24,7 +24,8 @@ class SendBookRequest(BaseModel):
 
 
 class AcceptBookRequest(BaseModel):
-    accepted_by: str  # Nome de quem assinou
+    accepted_by: Optional[str] = None   # Nome de quem assinou
+    signer_name: Optional[str] = None   # Alias frontend (ProvarBookPage.jsx usa signer_name)
 
 
 # ─── ROTAS PÚBLICAS (sem autenticação — cliente acessa) ───────────────────────
@@ -131,6 +132,27 @@ async def get_provare_book(book_slug: str, request: Request):
     return response
 
 
+@router.post("/book/{book_slug}/view")
+async def register_book_view(book_slug: str, request: Request):
+    """
+    Registra uma visualização do Provare Book pelo cliente.
+    Endpoint público — chamado automaticamente pelo ProvarBookPage.jsx.
+    """
+    db = get_database()
+    project = await db.projects.find_one({"book_slug": book_slug, "deleted": {"$ne": True}})
+    if not project:
+        return {"ok": True}  # Retorna OK mesmo se não encontrar (não bloqueia a leitura)
+
+    now = datetime.utcnow()
+    # Incrementa contador de visualizações do projeto
+    await db.projects.update_one(
+        {"project_id": project["project_id"]},
+        {"$inc": {"book_view_count": 1}, "$set": {"book_last_viewed_at": now}},
+    )
+
+    return {"ok": True}
+
+
 @router.post("/book/{book_slug}/accept")
 async def accept_provare_book(book_slug: str, data: AcceptBookRequest):
     """
@@ -150,21 +172,24 @@ async def accept_provare_book(book_slug: str, data: AcceptBookRequest):
             "accepted_by": project.get("book_accepted_by"),
         }
 
+    signer = data.signer_name or data.accepted_by or "Anônimo"
     now = datetime.utcnow()
     await db.projects.update_one(
         {"project_id": project["project_id"]},
         {"$set": {
             "book_accepted_at": now,
-            "book_accepted_by": data.accepted_by,
+            "book_accepted_by": signer,
+            "accepted": True,
+            "accepted_at": now,
             "updated_at": now,
         }},
     )
 
-    logger.info(f"Provare Book aceito: {book_slug} por {data.accepted_by}")
+    logger.info(f"Provare Book aceito: {book_slug} por {signer}")
     return {
         "message": "Aceite registrado com sucesso.",
         "accepted_at": now.isoformat(),
-        "accepted_by": data.accepted_by,
+        "accepted_by": signer,
         "book_slug": book_slug,
     }
 
